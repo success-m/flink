@@ -20,6 +20,9 @@ package malla;
 
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.Table;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.types.Row;
 
 
 /**
@@ -38,10 +41,32 @@ public class StreamingJob {
 
 	public static void main(String[] args) throws Exception {
 		// set up the streaming execution environment
-		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
 
 //		env.readTextFile("file:///home/smalla/Downloads/sample_dataset.csv");
-		DataStream<String> dataStream = env.readTextFile("file:///home/smalla/Downloads/test.txt");
+//		DataStream<String> dataStream = env.readTextFile("file:///home/smalla/Downloads/test.txt");
+
+		tEnv.executeSql("create TEMPORARY table products (" +
+				"sn int," +
+				"time_ref bigint," +
+				"account string," +
+				"code string," +
+				"country_code string," +
+				"product_type string," +
+				"dvalue double," +
+				"status string )" +
+				"with (" +
+				"'connector' = 'filesystem'," +
+				"'path' = 'file:///home/smalla/Downloads/test.csv'," +
+				"'format' = 'csv'," +
+				"'csv.ignore-parse-errors' = 'true'" +
+				")");
+
+		Table result = tEnv.sqlQuery("select * from products");
+//		result.printSchema();
+
+		DataStream<Row> dataStream = tEnv.toDataStream(result);
 
 		dataStream.print();
 		/*
