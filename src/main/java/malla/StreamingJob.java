@@ -18,29 +18,13 @@
 
 package malla;
 
-import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.Table;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.types.Row;
 
-
-/**
- * Skeleton for a Flink Streaming Job.
- *
- * <p>For a tutorial how to write a Flink streaming application, check the
- * tutorials and examples on the <a href="https://flink.apache.org/docs/stable/">Flink Website</a>.
- *
- * <p>To package your application into a JAR file for execution, run
- * 'mvn clean package' on the command line.
- *
- * <p>If you change the name of the main class (with the public static void main(String[] args))
- * method, change the respective entry in the POM.xml file (simply search for 'mainClass').
- */
 public class StreamingJob {
 
 	public static void main(String[] args) throws Exception {
-		// set up the streaming execution environment
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
 
@@ -58,38 +42,30 @@ public class StreamingJob {
 				"status string )" +
 				"with (" +
 				"'connector' = 'filesystem'," +
-				"'path' = 'file:///home/smalla/Downloads/test.csv'," +
+				"'path' = 'file:///home/smalla/Downloads/sample_dataset.csv'," +
 				"'format' = 'csv'," +
 				"'csv.ignore-parse-errors' = 'true'" +
 				")");
 
-		Table result = tEnv.sqlQuery("select * from products");
-//		result.printSchema();
+		//total number of imports and exports
+		tEnv.executeSql("select account, count(1) as cc " +
+				"from products where sn is not null " +
+				"group by account")
+				.print();
 
-		DataStream<Row> dataStream = tEnv.toDataStream(result);
+		//product type wise import or export
+		tEnv.executeSql("select product_type,account, count(1) as cc " +
+				"from products where sn is not null " +
+				"group by account,product_type")
+				.print();
 
-		dataStream.print();
-		/*
-		 * Here, you can start creating your execution plan for Flink.
-		 *
-		 * Start with getting some data from the environment, like
-		 * 	env.readTextFile(textPath);
-		 *
-		 * then, transform the resulting DataStream<String> using operations
-		 * like
-		 * 	.filter()
-		 * 	.flatMap()
-		 * 	.join()
-		 * 	.coGroup()
-		 *
-		 * and many more.
-		 * Have a look at the programming guide for the Java API:
-		 *
-		 * https://flink.apache.org/docs/latest/apis/streaming/index.html
-		 *
-		 */
+		//country, product type import and export
+		tEnv.executeSql("select product_type,account,country_code, count(1) as cc " +
+				"from products where sn is not null " +
+				"group by account,product_type,country_code")
+				.print();
 
-		// execute program
-		env.execute("Flink Streaming Java API Skeleton");
+		// unfortunately file sink is not available for table API :(
+		// could not persist
 	}
 }
