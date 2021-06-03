@@ -47,11 +47,23 @@ public class StreamingJob {
 				"'csv.ignore-parse-errors' = 'true'" +
 				")");
 
+		tEnv.executeSql("create table res1 (" +
+				"account string," +
+				"total bigint," +
+				"PRIMARY KEY (account) NOT ENFORCED" +
+				")" +
+				"with (" +
+				"'connector' = 'jdbc'," +
+				"'url' = 'jdbc:mysql://localhost:3306/flink?username=smalla&password=password'," +
+				"'table-name' = 'res1'" +
+				")");
+
 		//total number of imports and exports
-		tEnv.executeSql("select account, count(1) as cc " +
+		tEnv.executeSql("insert into res1 select account, count(1) as cc " +
 				"from products where sn is not null " +
-				"group by account")
-				.print();
+				"group by account");
+		// insert overwrite didnt work.
+		// adding unique key in mysql table worked with insert into
 
 		//product type wise import or export
 		tEnv.executeSql("select product_type,account, count(1) as cc " +
@@ -65,7 +77,8 @@ public class StreamingJob {
 				"group by account,product_type,country_code")
 				.print();
 
-		// unfortunately file sink is not available for table API :(
-		// could not persist
+		// unfortunately file sink is not available for table API when used with aggregate functions.
+		// Plain selects work perfectly but not useful for analysis. :(
+		// could not persist in file
 	}
 }
