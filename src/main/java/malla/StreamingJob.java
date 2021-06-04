@@ -1,25 +1,6 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package malla;
 
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 public class StreamingJob {
@@ -39,7 +20,9 @@ public class StreamingJob {
 				"country_code string," +
 				"product_type string," +
 				"dvalue double," +
-				"status string )" +
+				"status string," +
+				"ts as LOCALTIMESTAMP," +
+				"WATERMARK FOR ts AS ts - INTERVAL '10' SECOND)" +
 				"with (" +
 				"'connector' = 'filesystem'," +
 				"'path' = 'file:///home/smalla/Downloads/sample_dataset.csv'," +
@@ -47,35 +30,70 @@ public class StreamingJob {
 				"'csv.ignore-parse-errors' = 'true'" +
 				")");
 
-		tEnv.executeSql("create table res1 (" +
+//		tEnv.executeSql("select TUMBLE_START(ts, INTERVAL '0.5' SECOND), count(1) as c " +
+//				"from products p where sn is not null " +
+//				"group by TUMBLE(ts, INTERVAL '0.5' SECOND)")
+//				.print();
+
+		tEnv.executeSql("create table result1 (" +
+				"sn int," +
+				"ts timestamp," +
 				"account string," +
 				"total bigint," +
-				"PRIMARY KEY (account) NOT ENFORCED" +
+				"PRIMARY KEY (sn) NOT ENFORCED" +
 				")" +
 				"with (" +
 				"'connector' = 'jdbc'," +
 				"'url' = 'jdbc:mysql://localhost:3306/flink?username=smalla&password=password'," +
-				"'table-name' = 'res1'" +
+				"'table-name' = 'result1'" +
 				")");
+		// IMPORTANT: set a unique primary key. Otherwise the output will be less as the records would replace themselves.
 
 		//total number of imports and exports
-		tEnv.executeSql("insert into res1 select account, count(1) as cc " +
+		tEnv.executeSql("insert into result1 select max(sn) as sn,TUMBLE_START(ts, INTERVAL '0.5' SECOND) as ts, account, count(1) as cc " +
 				"from products where sn is not null " +
-				"group by account");
+				"group by TUMBLE(ts, INTERVAL '0.5' SECOND),account");
 		// insert overwrite didnt work.
 		// adding unique key in mysql table worked with insert into
 
-		//product type wise import or export
-		tEnv.executeSql("select product_type,account, count(1) as cc " +
-				"from products where sn is not null " +
-				"group by account,product_type")
-				.print();
+		tEnv.executeSql("create table result2 (" +
+				"sn int," +
+				"ts timestamp," +
+				"account string," +
+				"product_type string," +
+				"total bigint," +
+				"PRIMARY KEY (sn) NOT ENFORCED" +
+				")" +
+				"with (" +
+				"'connector' = 'jdbc'," +
+				"'url' = 'jdbc:mysql://localhost:3306/flink?username=smalla&password=password'," +
+				"'table-name' = 'result2'" +
+				")");
 
-		//country, product type import and export
-		tEnv.executeSql("select product_type,account,country_code, count(1) as cc " +
+		//total number of imports and exports
+		tEnv.executeSql("insert into result2 select max(sn) as sn, TUMBLE_START(ts, INTERVAL '0.5' SECOND) as ts, account,product_type, count(1) as cc " +
 				"from products where sn is not null " +
-				"group by account,product_type,country_code")
-				.print();
+				"group by TUMBLE(ts, INTERVAL '0.5' SECOND),account,product_type");
+
+		tEnv.executeSql("create table result3 (" +
+				"sn int," +
+				"ts timestamp," +
+				"account string," +
+				"product_type string," +
+				"country_code string," +
+				"total bigint," +
+				"PRIMARY KEY (sn) NOT ENFORCED" +
+				")" +
+				"with (" +
+				"'connector' = 'jdbc'," +
+				"'url' = 'jdbc:mysql://localhost:3306/flink?username=smalla&password=password'," +
+				"'table-name' = 'result3'" +
+				")");
+
+		//total number of imports and exports
+		tEnv.executeSql("insert into result3 select max(sn) as sn, TUMBLE_START(ts, INTERVAL '0.5' SECOND) as ts, account,product_type,country_code, count(1) as cc " +
+				"from products where sn is not null " +
+				"group by TUMBLE(ts, INTERVAL '0.5' SECOND),account,product_type, country_code");
 
 		// unfortunately file sink is not available for table API when used with aggregate functions.
 		// Plain selects work perfectly but not useful for analysis. :(
